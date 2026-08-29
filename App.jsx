@@ -1,5 +1,6 @@
-
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Routes, Route, useNavigate } from 'react-router-dom'
+import Accompagnement from './Accompagnement.jsx'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
 const PROMPT = 'calories@supermarket:~$'
@@ -8,7 +9,9 @@ let idCounter = 0
 
 const nextId = () => ++idCounter
 
-export default function App() {
+function Calculateur() {
+  const navigate = useNavigate()
+
   const [lines, setLines] = useState([
     {
       id: nextId(),
@@ -74,11 +77,11 @@ export default function App() {
   }, [])
 
   // =========================================
-  // REDIRECTION VERS LA PAGE ACCOMPAGNEMENT
+  // ALLER VERS LA PAGE ACCOMPAGNEMENT
   // =========================================
 
   const PageAccompagnement = () => {
-    window.location.href = '/accompagnements.html'
+    navigate('/accompagnement')
   }
 
   // =========================================
@@ -203,7 +206,7 @@ export default function App() {
   }
 
   // =========================================
-  // AFFICHER TOTAL
+  // AFFICHER LE TOTAL
   // =========================================
 
   function afficherTotal() {
@@ -276,7 +279,7 @@ export default function App() {
     setInput('')
 
     // =========================================
-    // ETAPE : NOM DE L'ALIMENT
+    // NOM DE L'ALIMENT
     // =========================================
 
     if (stage === 'name') {
@@ -348,7 +351,7 @@ export default function App() {
     }
 
     // =========================================
-    // ETAPE : CHOIX DU PRODUIT
+    // CHOIX DU PRODUIT
     // =========================================
 
     if (stage === 'choosing') {
@@ -390,7 +393,7 @@ export default function App() {
     }
 
     // =========================================
-    // ETAPE : QUANTITE
+    // QUANTITE
     // =========================================
 
     if (stage === 'quantity') {
@@ -463,7 +466,7 @@ export default function App() {
 
           {lines.map((line) => (
             <TerminalLine
-              key={lines.id}
+              key={line.id}
               line={line}
               onDelete={supprimerAliment}
             />
@@ -538,7 +541,7 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE ACCOMPAGNEMENT */}
+          {/* ACCOMPAGNEMENT */}
 
           <div className="cart-actions">
 
@@ -573,7 +576,7 @@ export default function App() {
 }
 
 // =========================================
-// AFFICHAGE DES LIGNES DU TERMINAL
+// LIGNES DU TERMINAL
 // =========================================
 
 function TerminalLine({ line, onDelete }) {
@@ -661,10 +664,28 @@ function TerminalLine({ line, onDelete }) {
   }
 
   return (
-    <div
-      className={`line ${line.type}`}
-    >
+    <div className={`line ${line.type}`}>
       {line.text}
     </div>
+  )
+}
+
+// =========================================
+// ROUTES
+// =========================================
+
+export default function App() {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={<Calculateur />}
+      />
+
+      <Route
+        path="/accompagnement"
+        element={<Accompagnement />}
+      />
+    </Routes>
   )
 }
