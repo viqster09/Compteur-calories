@@ -505,7 +505,7 @@ function TerminalLine({ line, onDelete }) {
           type="button"
           className="delete-food"
           onClick={() =>
-            onDelete(line.id)
+            onDelete(lines.id)
           }
           title="Supprimer cet aliment"
           aria-label="Supprimer cet aliment"
