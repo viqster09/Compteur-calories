@@ -149,6 +149,15 @@ export default function App() {
       )
       return
     }
+  }
+  function viderCLI() {
+    if (stage.length === 0) {
+      pushLine(
+        'warn',
+        'Le CLI est déjà vide.'
+      )
+      return
+    }
 
     setPanier([])
 
@@ -436,7 +445,17 @@ export default function App() {
               </button>
             </div>
           )}
-
+          {stage.length > 0 && (
+            <div className="cart-actions">
+              <button
+                type="button"
+                className="clear-cart"
+                onClick={viderCLI}
+              >
+                🗑️ Vider tout le CLI
+              </button>
+            </div>
+          )}
           <div ref={scrollRef} />
         </div>
 
@@ -536,4 +555,3 @@ function TerminalLine({ line, onDelete }) {
     </div>
   )
 }
-
