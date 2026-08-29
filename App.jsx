@@ -1,4 +1,4 @@
-```jsx
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
@@ -974,6 +974,3 @@ Et ajoute ce CSS **à la fin de ton `App.css`** pour que la popup soit correctem
   }
 
 }
-```
-
-Cette version **ne change pas de page** : le bouton ouvre directement la fenêtre avec les formules dans ton application Netlify.
