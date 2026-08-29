@@ -1,185 +1,226 @@
 ```jsx
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
 
 export default function App() {
   const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
-  const [panier, setPanier] = useState([])
+  const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(false)
-  const [searched, setSearched] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
   const [error, setError] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [quantity, setQuantity] = useState(100)
 
-  const inputRef = useRef(null)
+  const searchInputRef = useRef(null)
 
-  async function rechercherAliment(e) {
-    e?.preventDefault()
+  async function searchFood(event) {
+    event.preventDefault()
 
-    const terme = search.trim()
+    const term = search.trim()
 
-    if (!terme || loading) return
+    if (!term || loading) {
+      return
+    }
 
     setLoading(true)
     setError('')
-    setSearched(true)
+    setHasSearched(true)
     setResults([])
 
     const params = new URLSearchParams({
-      search_terms: terme,
+      search_terms: term,
       search_simple: '1',
       action: 'process',
       json: '1',
       page_size: '12',
-      fields: 'product_name,nutriments,image_front_small_url,brands'
+      fields:
+        'code,product_name,nutriments,image_front_small_url,brands'
     })
 
     try {
-      const response = await fetch(`${API_URL}?${params.toString()}`)
+      const response = await fetch(
+        `${API_URL}?${params.toString()}`
+      )
 
       if (!response.ok) {
-        throw new Error('Erreur API')
+        throw new Error('API request failed')
       }
 
       const data = await response.json()
 
       const products = (data.products || [])
-        .map((product) => ({
-          id:
-            product.code ||
-            `${product.product_name}-${Math.random()}`,
-          nom: product.product_name,
-          calories_100g:
-            product.nutriments?.['energy-kcal_100g'],
-          image: product.image_front_small_url || '',
-          marque: product.brands || ''
-        }))
+        .map((product, index) => {
+          const calories =
+            product.nutriments &&
+            product.nutriments['energy-kcal_100g']
+
+          return {
+            id:
+              product.code ||
+              `${product.product_name || 'food'}-${index}`,
+            name: product.product_name || 'Aliment sans nom',
+            calories:
+              typeof calories === 'number'
+                ? calories
+                : null,
+            image:
+              product.image_front_small_url || '',
+            brand: product.brands || ''
+          }
+        })
         .filter(
           (product) =>
-            product.nom &&
-            typeof product.calories_100g === 'number'
+            product.name &&
+            typeof product.calories === 'number'
         )
 
       setResults(products)
     } catch (err) {
       console.error(err)
+
       setError(
-        "Impossible de récupérer les aliments pour le moment. Réessaie dans quelques secondes."
+        'Impossible de récupérer les aliments pour le moment.'
       )
     } finally {
       setLoading(false)
     }
   }
 
-  function ouvrirAjout(product) {
+  function openAddModal(product) {
     setSelectedProduct(product)
     setQuantity(100)
   }
 
-  function fermerAjout() {
+  function closeAddModal() {
     setSelectedProduct(null)
     setQuantity(100)
   }
 
-  function ajouterAuPanier() {
-    if (!selectedProduct) return
+  function addToCart() {
+    if (!selectedProduct) {
+      return
+    }
 
-    const qte = Number(quantity)
+    const grams = Number(quantity)
 
-    if (!qte || qte <= 0) return
+    if (!Number.isFinite(grams) || grams <= 0) {
+      return
+    }
 
-    const calories =
-      (selectedProduct.calories_100g * qte) / 100
-
-    const existingIndex = panier.findIndex(
+    const existingItem = cart.find(
       (item) => item.id === selectedProduct.id
     )
 
-    if (existingIndex !== -1) {
-      setPanier((prev) =>
-        prev.map((item, index) =>
-          index === existingIndex
-            ? {
-                ...item,
-                quantite: item.quantite + qte
-              }
-            : item
-        )
+    if (existingItem) {
+      setCart((currentCart) =>
+        currentCart.map((item) => {
+          if (item.id !== selectedProduct.id) {
+            return item
+          }
+
+          return {
+            ...item,
+            quantity: item.quantity + grams
+          }
+        })
       )
     } else {
-      setPanier((prev) => [
-        ...prev,
+      setCart((currentCart) => [
+        ...currentCart,
         {
           ...selectedProduct,
-          quantite: qte,
-          calories
+          quantity: grams
         }
       ])
     }
 
-    fermerAjout()
+    closeAddModal()
   }
 
-  function supprimerAliment(id) {
-    setPanier((prev) =>
-      prev.filter((item) => item.id !== id)
+  function removeFromCart(id) {
+    setCart((currentCart) =>
+      currentCart.filter((item) => item.id !== id)
     )
   }
 
-  function modifierQuantite(id, nouvelleQuantite) {
-    const qte = Math.max(
-      1,
-      Number(nouvelleQuantite) || 1
-    )
+  function updateQuantity(id, value) {
+    const grams = Number(value)
 
-    setPanier((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantite: qte,
-              calories:
-                (item.calories_100g * qte) / 100
-            }
-          : item
-      )
-    )
-  }
-
-  function incrementer(id) {
-    const item = panier.find((element) => element.id === id)
-
-    if (item) {
-      modifierQuantite(id, item.quantite + 25)
+    if (!Number.isFinite(grams) || grams <= 0) {
+      return
     }
+
+    setCart((currentCart) =>
+      currentCart.map((item) => {
+        if (item.id !== id) {
+          return item
+        }
+
+        return {
+          ...item,
+          quantity: grams
+        }
+      })
+    )
   }
 
-  function decrementer(id) {
-    const item = panier.find((element) => element.id === id)
+  function increaseQuantity(id) {
+    const item = cart.find(
+      (currentItem) => currentItem.id === id
+    )
 
-    if (item) {
-      modifierQuantite(
-        id,
-        Math.max(25, item.quantite - 25)
-      )
+    if (!item) {
+      return
     }
+
+    updateQuantity(id, item.quantity + 25)
   }
 
-  function viderPanier() {
-    setPanier([])
+  function decreaseQuantity(id) {
+    const item = cart.find(
+      (currentItem) => currentItem.id === id
+    )
+
+    if (!item) {
+      return
+    }
+
+    updateQuantity(
+      id,
+      Math.max(25, item.quantity - 25)
+    )
   }
 
-  const totalCalories = panier.reduce(
-    (total, item) =>
-      total +
-      (item.calories_100g * item.quantite) / 100,
+  function clearCart() {
+    setCart([])
+  }
+
+  function useSuggestion(value) {
+    setSearch(value)
+
+    window.setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 50)
+  }
+
+  const totalCalories = cart.reduce(
+    (total, item) => {
+      return (
+        total +
+        (item.calories * item.quantity) / 100
+      )
+    },
     0
   )
 
-  const totalGrammes = panier.reduce(
-    (total, item) => total + item.quantite,
+  const totalGrams = cart.reduce(
+    (total, item) => {
+      return total + item.quantity
+    },
     0
   )
 
@@ -190,7 +231,9 @@ export default function App() {
 
       <header className="header">
         <div className="brand">
-          <div className="brand-icon">🔥</div>
+          <div className="brand-icon">
+            🔥
+          </div>
 
           <div>
             <h1>Calories</h1>
@@ -218,26 +261,33 @@ export default function App() {
             </h2>
 
             <p>
-              Recherche un aliment, ajoute sa quantité
+              Recherche un aliment, choisis sa quantité
               et construis ton ticket nutritionnel.
             </p>
           </div>
 
-          <div className="hero-flame">🔥</div>
+          <div className="hero-flame">
+            🔥
+          </div>
         </section>
 
         <form
           className="search-box"
-          onSubmit={rechercherAliment}
+          onSubmit={searchFood}
         >
-          <div className="search-icon">⌕</div>
+          <div className="search-icon">
+            ⌕
+          </div>
 
           <input
-            ref={inputRef}
+            ref={searchInputRef}
             type="text"
-            placeholder="Rechercher un aliment..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un aliment..."
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            autoComplete="off"
           />
 
           {search && (
@@ -247,7 +297,8 @@ export default function App() {
               onClick={() => {
                 setSearch('')
                 setResults([])
-                setSearched(false)
+                setHasSearched(false)
+                setError('')
               }}
             >
               ×
@@ -263,8 +314,13 @@ export default function App() {
               <span className="spinner" />
             ) : (
               <>
-                Rechercher
-                <span>→</span>
+                <span className="search-text">
+                  Rechercher
+                </span>
+
+                <span className="arrow">
+                  →
+                </span>
               </>
             )}
           </button>
@@ -286,7 +342,7 @@ export default function App() {
                 </span>
 
                 <h3>
-                  {searched
+                  {hasSearched
                     ? 'Résultats de recherche'
                     : 'Que veux-tu manger ?'}
                 </h3>
@@ -299,121 +355,153 @@ export default function App() {
               )}
             </div>
 
-            {loading ? (
+            {loading && (
               <div className="loading-state">
                 <div className="loading-circle">
                   🔥
                 </div>
 
-                <h4>Recherche en cours...</h4>
+                <h4>
+                  Recherche en cours...
+                </h4>
 
                 <p>
-                  Nous cherchons les meilleurs résultats.
+                  Recherche dans Open Food Facts.
                 </p>
-              </div>
-            ) : results.length > 0 ? (
-              <div className="products-grid">
-                {results.map((product) => (
-                  <article
-                    className="product-card"
-                    key={product.id}
-                  >
-                    <div className="product-image">
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.nom}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span>🍽️</span>
-                      )}
-                    </div>
-
-                    <div className="product-info">
-                      {product.marque && (
-                        <span className="product-brand">
-                          {product.marque}
-                        </span>
-                      )}
-
-                      <h4>{product.nom}</h4>
-
-                      <div className="calories">
-                        <strong>
-                          {Math.round(
-                            product.calories_100g
-                          )}
-                        </strong>
-
-                        <span>kcal / 100g</span>
-                      </div>
-                    </div>
-
-                    <button
-                      className="add-button"
-                      onClick={() =>
-                        ouvrirAjout(product)
-                      }
-                    >
-                      <span>+</span>
-                      Ajouter
-                    </button>
-                  </article>
-                ))}
-              </div>
-            ) : searched && !loading ? (
-              <div className="empty-search">
-                <div>🥲</div>
-
-                <h4>Aucun aliment trouvé</h4>
-
-                <p>
-                  Essaie avec un nom plus simple, comme
-                  « pomme », « riz » ou « poulet ».
-                </p>
-              </div>
-            ) : (
-              <div className="welcome-card">
-                <div className="welcome-icon">
-                  🔎
-                </div>
-
-                <h4>Commence une recherche</h4>
-
-                <p>
-                  Trouve un aliment dans la base Open Food
-                  Facts et ajoute-le à ton ticket.
-                </p>
-
-                <div className="suggestions">
-                  {[
-                    '🍎 Pomme',
-                    '🍌 Banane',
-                    '🍚 Riz',
-                    '🍗 Poulet'
-                  ].map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => {
-                        const value =
-                          suggestion
-                            .replace(/^[^ ]+ /, '')
-                            .trim()
-
-                        setSearch(value)
-
-                        setTimeout(() => {
-                          inputRef.current?.focus()
-                        }, 50)
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
+
+            {!loading &&
+              results.length > 0 && (
+                <div className="products-grid">
+                  {results.map((product) => (
+                    <article
+                      className="product-card"
+                      key={product.id}
+                    >
+                      <div className="product-image">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt=""
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span>🍽️</span>
+                        )}
+                      </div>
+
+                      <div className="product-info">
+                        {product.brand && (
+                          <span className="product-brand">
+                            {product.brand}
+                          </span>
+                        )}
+
+                        <h4>
+                          {product.name}
+                        </h4>
+
+                        <div className="calories">
+                          <strong>
+                            {Math.round(
+                              product.calories
+                            )}
+                          </strong>
+
+                          <span>
+                            kcal / 100g
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="add-button"
+                        onClick={() =>
+                          openAddModal(product)
+                        }
+                      >
+                        <span>+</span>
+                        Ajouter
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+            {!loading &&
+              hasSearched &&
+              results.length === 0 && (
+                <div className="empty-search">
+                  <div>🥲</div>
+
+                  <h4>
+                    Aucun aliment trouvé
+                  </h4>
+
+                  <p>
+                    Essaie un nom plus simple comme
+                    « pomme », « riz » ou « poulet ».
+                  </p>
+                </div>
+              )}
+
+            {!loading &&
+              !hasSearched && (
+                <div className="welcome-card">
+                  <div className="welcome-icon">
+                    🔎
+                  </div>
+
+                  <h4>
+                    Commence une recherche
+                  </h4>
+
+                  <p>
+                    Trouve un aliment dans Open Food
+                    Facts et ajoute-le à ton ticket.
+                  </p>
+
+                  <div className="suggestions">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        useSuggestion('pomme')
+                      }
+                    >
+                      🍎 Pomme
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        useSuggestion('banane')
+                      }
+                    >
+                      🍌 Banane
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        useSuggestion('riz')
+                      }
+                    >
+                      🍚 Riz
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        useSuggestion('poulet')
+                      }
+                    >
+                      🍗 Poulet
+                    </button>
+                  </div>
+                </div>
+              )}
           </section>
 
           <aside className="ticket">
@@ -428,132 +516,168 @@ export default function App() {
                 </h3>
               </div>
 
-              {panier.length > 0 && (
+              {cart.length > 0 && (
                 <button
+                  type="button"
                   className="clear-cart"
-                  onClick={viderPanier}
+                  onClick={clearCart}
                 >
                   Vider
                 </button>
               )}
             </div>
 
-            {panier.length === 0 ? (
+            {cart.length === 0 && (
               <div className="ticket-empty">
                 <div className="empty-cart-icon">
                   🛒
                 </div>
 
-                <h4>Ton ticket est vide</h4>
+                <h4>
+                  Ton ticket est vide
+                </h4>
 
                 <p>
-                  Ajoute des aliments pour commencer à
-                  calculer ton total.
+                  Ajoute des aliments pour commencer
+                  ton calcul.
                 </p>
               </div>
-            ) : (
+            )}
+
+            {cart.length > 0 && (
               <>
                 <div className="ticket-items">
-                  {panier.map((item) => (
-                    <div
-                      className="ticket-item"
-                      key={item.id}
-                    >
-                      <div className="ticket-item-top">
-                        <div className="ticket-product-image">
-                          {item.image ? (
-                            <img
-                              src={item.image}
-                              alt=""
-                            />
-                          ) : (
-                            '🍽️'
-                          )}
+                  {cart.map((item) => {
+                    const itemCalories =
+                      (item.calories *
+                        item.quantity) /
+                      100
+
+                    return (
+                      <div
+                        className="ticket-item"
+                        key={item.id}
+                      >
+                        <div className="ticket-item-top">
+                          <div className="ticket-product-image">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt=""
+                              />
+                            ) : (
+                              '🍽️'
+                            )}
+                          </div>
+
+                          <div className="ticket-product-info">
+                            <h4>
+                              {item.name}
+                            </h4>
+
+                            <span>
+                              {Math.round(
+                                itemCalories
+                              )}{' '}
+                              kcal
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="delete-button"
+                            aria-label="Supprimer"
+                            onClick={() =>
+                              removeFromCart(
+                                item.id
+                              )
+                            }
+                          >
+                            ×
+                          </button>
                         </div>
 
-                        <div className="ticket-product-info">
-                          <h4>{item.nom}</h4>
+                        <div className="quantity-control">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              decreaseQuantity(
+                                item.id
+                              )
+                            }
+                          >
+                            −
+                          </button>
 
-                          <span>
-                            {Math.round(
-                              (item.calories_100g *
-                                item.quantite) /
-                                100
-                            )}{' '}
-                            kcal
-                          </span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateQuantity(
+                                item.id,
+                                event.target.value
+                              )
+                            }
+                          />
+
+                          <span>g</span>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              increaseQuantity(
+                                item.id
+                              )
+                            }
+                          >
+                            +
+                          </button>
                         </div>
-
-                        <button
-                          className="delete-button"
-                          onClick={() =>
-                            supprimerAliment(item.id)
-                          }
-                          aria-label={`Supprimer ${item.nom}`}
-                        >
-                          ×
-                        </button>
                       </div>
-
-                      <div className="quantity-control">
-                        <button
-                          onClick={() =>
-                            decrementer(item.id)
-                          }
-                        >
-                          −
-                        </button>
-
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantite}
-                          onChange={(e) =>
-                            modifierQuantite(
-                              item.id,
-                              e.target.value
-                            )
-                          }
-                        />
-
-                        <span>g</span>
-
-                        <button
-                          onClick={() =>
-                            incrementer(item.id)
-                          }
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 <div className="ticket-summary">
                   <div className="summary-line">
-                    <span>Aliments</span>
+                    <span>
+                      Aliments
+                    </span>
+
                     <strong>
-                      {panier.length}
+                      {cart.length}
                     </strong>
                   </div>
 
                   <div className="summary-line">
-                    <span>Quantité totale</span>
+                    <span>
+                      Quantité totale
+                    </span>
+
                     <strong>
-                      {Math.round(totalGrammes)} g
+                      {Math.round(totalGrams)} g
                     </strong>
                   </div>
 
                   <div className="total-line">
                     <div>
-                      <span>TOTAL</span>
-                      <small>Calories estimées</small>
+                      <span>
+                        TOTAL
+                      </span>
+
+                      <small>
+                        Calories estimées
+                      </small>
                     </div>
 
                     <strong>
-                      {Math.round(totalCalories)}
-                      <small>kcal</small>
+                      {Math.round(
+                        totalCalories
+                      )}
+                      <small>
+                        kcal
+                      </small>
                     </strong>
                   </div>
                 </div>
@@ -564,7 +688,10 @@ export default function App() {
       </main>
 
       <footer>
-        <span>🔥 CALORIES@SUPERMARKET</span>
+        <span>
+          🔥 CALORIES@SUPERMARKET
+        </span>
+
         <span>
           Données fournies par Open Food Facts
         </span>
@@ -573,17 +700,19 @@ export default function App() {
       {selectedProduct && (
         <div
           className="modal-overlay"
-          onMouseDown={fermerAjout}
+          onMouseDown={closeAddModal}
         >
           <div
             className="quantity-modal"
-            onMouseDown={(e) =>
-              e.stopPropagation()
+            onMouseDown={(event) =>
+              event.stopPropagation()
             }
           >
             <button
+              type="button"
               className="modal-close"
-              onClick={fermerAjout}
+              onClick={closeAddModal}
+              aria-label="Fermer"
             >
               ×
             </button>
@@ -592,7 +721,7 @@ export default function App() {
               {selectedProduct.image ? (
                 <img
                   src={selectedProduct.image}
-                  alt={selectedProduct.nom}
+                  alt=""
                 />
               ) : (
                 '🍽️'
@@ -603,11 +732,13 @@ export default function App() {
               AJOUTER AU TICKET
             </span>
 
-            <h3>{selectedProduct.nom}</h3>
+            <h3>
+              {selectedProduct.name}
+            </h3>
 
             <p className="modal-calories">
               {Math.round(
-                selectedProduct.calories_100g
+                selectedProduct.calories
               )}{' '}
               kcal / 100g
             </p>
@@ -622,19 +753,24 @@ export default function App() {
                 type="number"
                 min="1"
                 value={quantity}
-                onChange={(e) =>
-                  setQuantity(e.target.value)
+                onChange={(event) =>
+                  setQuantity(
+                    event.target.value
+                  )
                 }
                 autoFocus
               />
 
-              <span>grammes</span>
+              <span>
+                grammes
+              </span>
             </div>
 
             <div className="quick-quantities">
               {[50, 100, 150, 200, 250].map(
                 (value) => (
                   <button
+                    type="button"
                     key={value}
                     className={
                       Number(quantity) === value
@@ -658,7 +794,7 @@ export default function App() {
 
               <strong>
                 {Math.round(
-                  (selectedProduct.calories_100g *
+                  (selectedProduct.calories *
                     (Number(quantity) || 0)) /
                     100
                 )}{' '}
@@ -667,8 +803,9 @@ export default function App() {
             </div>
 
             <button
+              type="button"
               className="modal-add"
-              onClick={ajouterAuPanier}
+              onClick={addToCart}
             >
               <span>+</span>
               Ajouter au ticket
