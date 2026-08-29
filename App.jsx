@@ -1,252 +1,682 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+```jsx
+import { useState, useRef } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
-const PROMPT = 'calories@supermarket:~$'
-
-// Stages du "script" : mêmes étapes que le CLI Python
-//   name      -> on attend un nom d'aliment (ou 'total' / 'fin')
-//   choosing  -> on attend un numéro de résultat
-//   quantity  -> on attend une quantité en grammes
-
-let idCounter = 0
-const nextId = () => ++idCounter
 
 export default function App() {
-  const [lines, setLines] = useState([
-    { id: nextId(), type: 'boot', text: 'LE TICKET — calculateur de calories v1.0' },
-    { id: nextId(), type: 'boot', text: 'source des données : Open Food Facts (openfoodfacts.org)' },
-    { id: nextId(), type: 'boot', text: '' },
-    { id: nextId(), type: 'system', text: "Tape le nom d'un aliment pour commencer. Commandes : 'total', 'fin'." },
-  ])
-  const [stage, setStage] = useState('name')
-  const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
-  const [pendingProduct, setPendingProduct] = useState(null)
   const [panier, setPanier] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [error, setError] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [quantity, setQuantity] = useState(100)
 
-  const scrollRef = useRef(null)
   const inputRef = useRef(null)
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ block: 'end' })
-  }, [lines, busy])
+  async function rechercherAliment(e) {
+    e?.preventDefault()
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [stage, busy])
+    const terme = search.trim()
 
-  const pushLine = useCallback((type, text) => {
-    setLines(prev => [...prev, { id: nextId(), type, text }])
-  }, [])
+    if (!terme || loading) return
 
-  const pushLines = useCallback((arr) => {
-    setLines(prev => [...prev, ...arr.map(l => ({ id: nextId(), ...l }))])
-  }, [])
+    setLoading(true)
+    setError('')
+    setSearched(true)
+    setResults([])
 
-  async function chercherAliment(terme) {
     const params = new URLSearchParams({
       search_terms: terme,
-      search_simple: 1,
+      search_simple: '1',
       action: 'process',
-      json: 1,
-      page_size: 6,
+      json: '1',
+      page_size: '12',
+      fields: 'product_name,nutriments,image_front_small_url,brands'
     })
 
-    // 3 tentatives silencieuses, comme le script Python, mais sans étaler
-    // la trace d'erreur : juste un message clair si tout échoue.
-    for (let tentative = 0; tentative < 3; tentative++) {
-      try {
-        const res = await fetch(`${API_URL}?${params.toString()}`)
-        if (!res.ok) throw new Error(String(res.status))
-        const data = await res.json()
-        return (data.products || [])
-          .map(p => ({
-            nom: p.product_name,
-            calories_100g: p.nutriments ? p.nutriments['energy-kcal_100g'] : undefined,
-          }))
-          .filter(p => p.nom && typeof p.calories_100g === 'number')
-      } catch (e) {
-        if (tentative < 2) {
-          pushLine('meta', '  service occupé, nouvelle tentative…')
-          await new Promise(r => setTimeout(r, 1200))
-        }
+    try {
+      const response = await fetch(`${API_URL}?${params.toString()}`)
+
+      if (!response.ok) {
+        throw new Error('Erreur API')
       }
+
+      const data = await response.json()
+
+      const products = (data.products || [])
+        .map((product) => ({
+          id:
+            product.code ||
+            `${product.product_name}-${Math.random()}`,
+          nom: product.product_name,
+          calories_100g:
+            product.nutriments?.['energy-kcal_100g'],
+          image: product.image_front_small_url || '',
+          marque: product.brands || ''
+        }))
+        .filter(
+          (product) =>
+            product.nom &&
+            typeof product.calories_100g === 'number'
+        )
+
+      setResults(products)
+    } catch (err) {
+      console.error(err)
+      setError(
+        "Impossible de récupérer les aliments pour le moment. Réessaie dans quelques secondes."
+      )
+    } finally {
+      setLoading(false)
     }
-    return null // échec total après 3 tentatives
   }
 
-  function afficherTotal() {
-    if (panier.length === 0) {
-      pushLine('warn', 'Le ticket est vide pour le moment.')
-      return
-    }
-    const total = panier.reduce(
-      (acc, it) => acc + (it.calories_100g * it.quantite) / 100, 0
+  function ouvrirAjout(product) {
+    setSelectedProduct(product)
+    setQuantity(100)
+  }
+
+  function fermerAjout() {
+    setSelectedProduct(null)
+    setQuantity(100)
+  }
+
+  function ajouterAuPanier() {
+    if (!selectedProduct) return
+
+    const qte = Number(quantity)
+
+    if (!qte || qte <= 0) return
+
+    const calories =
+      (selectedProduct.calories_100g * qte) / 100
+
+    const existingIndex = panier.findIndex(
+      (item) => item.id === selectedProduct.id
     )
-    const rows = panier.map(it => {
-      const cal = Math.round((it.calories_100g * it.quantite) / 100)
-      return { type: 'ticket-row', text: `${it.nom} (${it.quantite}g)`, kcal: `${cal} kcal` }
-    })
-    pushLines([
-      { type: 'divider', text: '─'.repeat(38) },
-      ...rows,
-      { type: 'divider', text: '─'.repeat(38) },
-      { type: 'total', text: 'TOTAL', kcal: `${Math.round(total)} kcal` },
-      { type: 'divider', text: '─'.repeat(38) },
-    ])
-  }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    const value = input.trim()
-    if (!value || busy) return
-
-    pushLine('user', value)
-    setInput('')
-
-    if (stage === 'name') {
-      const cmd = value.toLowerCase()
-      if (cmd === 'total' || cmd === 'fin') {
-        afficherTotal()
-        return
-      }
-
-      setBusy(true)
-      pushLine('meta', `recherche de "${value}"…`)
-      const found = await chercherAliment(value)
-      setBusy(false)
-
-      if (found === null) {
-        pushLine('warn', "Le service ne répond pas pour l'instant. Réessaie dans un instant avec le même nom.")
-        return
-      }
-      if (found.length === 0) {
-        pushLine('warn', `Rien trouvé pour "${value}". Essaie un nom plus simple (ex : "tomate" plutôt que "tomate cerise bio").`)
-        return
-      }
-
-      setResults(found)
-      pushLines([
-        ...found.map((r, i) => ({
-          type: 'choice',
-          text: `  [${i + 1}] ${r.nom}`,
-          kcal: `${Math.round(r.calories_100g)} kcal/100g`,
-        })),
-        { type: 'system', text: `Tape un numéro (1-${found.length}), ou 0 pour annuler.` },
+    if (existingIndex !== -1) {
+      setPanier((prev) =>
+        prev.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                quantite: item.quantite + qte
+              }
+            : item
+        )
+      )
+    } else {
+      setPanier((prev) => [
+        ...prev,
+        {
+          ...selectedProduct,
+          quantite: qte,
+          calories
+        }
       ])
-      setStage('choosing')
-      return
     }
 
-    if (stage === 'choosing') {
-      const n = parseInt(value, 10)
-      if (n === 0) {
-        pushLine('meta', 'annulé.')
-        setStage('name')
-        return
-      }
-      if (!Number.isInteger(n) || n < 1 || n > results.length) {
-        pushLine('warn', `Choix invalide. Tape un numéro entre 1 et ${results.length}, ou 0 pour annuler.`)
-        return
-      }
-      const produit = results[n - 1]
-      setPendingProduct(produit)
-      pushLine('system', `Quantité de "${produit.nom}" en grammes ?`)
-      setStage('quantity')
-      return
-    }
+    fermerAjout()
+  }
 
-    if (stage === 'quantity') {
-      const qte = parseFloat(value.replace(',', '.'))
-      if (isNaN(qte) || qte <= 0) {
-        pushLine('warn', 'Entre un nombre de grammes valide (ex : 100).')
-        return
-      }
-      const item = { ...pendingProduct, quantite: qte }
-      setPanier(prev => [...prev, item])
-      const cal = Math.round((item.calories_100g * qte) / 100)
-      pushLine('success', `✓ ajouté : ${item.nom} — ${qte}g — ${cal} kcal`)
-      pushLine('system', "Aliment suivant (ou 'total' / 'fin').")
-      setPendingProduct(null)
-      setStage('name')
-      return
+  function supprimerAliment(id) {
+    setPanier((prev) =>
+      prev.filter((item) => item.id !== id)
+    )
+  }
+
+  function modifierQuantite(id, nouvelleQuantite) {
+    const qte = Math.max(
+      1,
+      Number(nouvelleQuantite) || 1
+    )
+
+    setPanier((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              quantite: qte,
+              calories:
+                (item.calories_100g * qte) / 100
+            }
+          : item
+      )
+    )
+  }
+
+  function incrementer(id) {
+    const item = panier.find((element) => element.id === id)
+
+    if (item) {
+      modifierQuantite(id, item.quantite + 25)
     }
   }
+
+  function decrementer(id) {
+    const item = panier.find((element) => element.id === id)
+
+    if (item) {
+      modifierQuantite(
+        id,
+        Math.max(25, item.quantite - 25)
+      )
+    }
+  }
+
+  function viderPanier() {
+    setPanier([])
+  }
+
+  const totalCalories = panier.reduce(
+    (total, item) =>
+      total +
+      (item.calories_100g * item.quantite) / 100,
+    0
+  )
+
+  const totalGrammes = panier.reduce(
+    (total, item) => total + item.quantite,
+    0
+  )
 
   return (
-    <div className="crt-wrap">
-      <div className="terminal" onClick={() => inputRef.current?.focus()}>
-        <div className="titlebar">
-          <div className="dots">
-            <span className="dot red" />
-            <span className="dot yellow" />
-            <span className="dot green" />
+    <div className="app">
+      <div className="background-glow glow-one" />
+      <div className="background-glow glow-two" />
+
+      <header className="header">
+        <div className="brand">
+          <div className="brand-icon">🔥</div>
+
+          <div>
+            <h1>Calories</h1>
+            <span>@supermarket</span>
           </div>
-          <div className="titletext">calories@supermarket — zsh</div>
         </div>
 
-        <div className="screen">
-          {lines.map(line => (
-            <TerminalLine key={line.id} line={line} />
-          ))}
-
-          {busy && <div className="line meta">…</div>}
-
-          <form onSubmit={handleSubmit} className="input-row">
-            <span className="prompt">{PROMPT}</span>
-            <input
-              ref={inputRef}
-              className="cmd-input"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              disabled={busy}
-              autoFocus
-              autoComplete="off"
-              spellCheck="false"
-            />
-            <span className="cursor" aria-hidden="true">▌</span>
-          </form>
-
-          <div ref={scrollRef} />
+        <div className="header-status">
+          <span className="status-dot" />
+          Open Food Facts
         </div>
+      </header>
 
-        <div className="scanlines" aria-hidden="true" />
-      </div>
+      <main className="container">
+        <section className="hero">
+          <div className="hero-content">
+            <span className="eyebrow">
+              CALCULATEUR NUTRITIONNEL
+            </span>
 
-      <p className="footnote">
-        Données nutritionnelles : Open Food Facts (base collaborative et open source).
-      </p>
+            <h2>
+              Calcule tes calories
+              <br />
+              <span>simplement.</span>
+            </h2>
+
+            <p>
+              Recherche un aliment, ajoute sa quantité
+              et construis ton ticket nutritionnel.
+            </p>
+          </div>
+
+          <div className="hero-flame">🔥</div>
+        </section>
+
+        <form
+          className="search-box"
+          onSubmit={rechercherAliment}
+        >
+          <div className="search-icon">⌕</div>
+
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Rechercher un aliment..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          {search && (
+            <button
+              type="button"
+              className="clear-search"
+              onClick={() => {
+                setSearch('')
+                setResults([])
+                setSearched(false)
+              }}
+            >
+              ×
+            </button>
+          )}
+
+          <button
+            type="submit"
+            className="search-button"
+            disabled={loading || !search.trim()}
+          >
+            {loading ? (
+              <span className="spinner" />
+            ) : (
+              <>
+                Rechercher
+                <span>→</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        {error && (
+          <div className="error-message">
+            <span>!</span>
+            {error}
+          </div>
+        )}
+
+        <div className="layout">
+          <section className="products-section">
+            <div className="section-header">
+              <div>
+                <span className="section-label">
+                  ALIMENTS
+                </span>
+
+                <h3>
+                  {searched
+                    ? 'Résultats de recherche'
+                    : 'Que veux-tu manger ?'}
+                </h3>
+              </div>
+
+              {results.length > 0 && (
+                <span className="result-count">
+                  {results.length} résultats
+                </span>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="loading-state">
+                <div className="loading-circle">
+                  🔥
+                </div>
+
+                <h4>Recherche en cours...</h4>
+
+                <p>
+                  Nous cherchons les meilleurs résultats.
+                </p>
+              </div>
+            ) : results.length > 0 ? (
+              <div className="products-grid">
+                {results.map((product) => (
+                  <article
+                    className="product-card"
+                    key={product.id}
+                  >
+                    <div className="product-image">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.nom}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span>🍽️</span>
+                      )}
+                    </div>
+
+                    <div className="product-info">
+                      {product.marque && (
+                        <span className="product-brand">
+                          {product.marque}
+                        </span>
+                      )}
+
+                      <h4>{product.nom}</h4>
+
+                      <div className="calories">
+                        <strong>
+                          {Math.round(
+                            product.calories_100g
+                          )}
+                        </strong>
+
+                        <span>kcal / 100g</span>
+                      </div>
+                    </div>
+
+                    <button
+                      className="add-button"
+                      onClick={() =>
+                        ouvrirAjout(product)
+                      }
+                    >
+                      <span>+</span>
+                      Ajouter
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : searched && !loading ? (
+              <div className="empty-search">
+                <div>🥲</div>
+
+                <h4>Aucun aliment trouvé</h4>
+
+                <p>
+                  Essaie avec un nom plus simple, comme
+                  « pomme », « riz » ou « poulet ».
+                </p>
+              </div>
+            ) : (
+              <div className="welcome-card">
+                <div className="welcome-icon">
+                  🔎
+                </div>
+
+                <h4>Commence une recherche</h4>
+
+                <p>
+                  Trouve un aliment dans la base Open Food
+                  Facts et ajoute-le à ton ticket.
+                </p>
+
+                <div className="suggestions">
+                  {[
+                    '🍎 Pomme',
+                    '🍌 Banane',
+                    '🍚 Riz',
+                    '🍗 Poulet'
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => {
+                        const value =
+                          suggestion
+                            .replace(/^[^ ]+ /, '')
+                            .trim()
+
+                        setSearch(value)
+
+                        setTimeout(() => {
+                          inputRef.current?.focus()
+                        }, 50)
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="ticket">
+            <div className="ticket-header">
+              <div>
+                <span className="section-label">
+                  MON TICKET
+                </span>
+
+                <h3>
+                  Mon alimentation
+                </h3>
+              </div>
+
+              {panier.length > 0 && (
+                <button
+                  className="clear-cart"
+                  onClick={viderPanier}
+                >
+                  Vider
+                </button>
+              )}
+            </div>
+
+            {panier.length === 0 ? (
+              <div className="ticket-empty">
+                <div className="empty-cart-icon">
+                  🛒
+                </div>
+
+                <h4>Ton ticket est vide</h4>
+
+                <p>
+                  Ajoute des aliments pour commencer à
+                  calculer ton total.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="ticket-items">
+                  {panier.map((item) => (
+                    <div
+                      className="ticket-item"
+                      key={item.id}
+                    >
+                      <div className="ticket-item-top">
+                        <div className="ticket-product-image">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt=""
+                            />
+                          ) : (
+                            '🍽️'
+                          )}
+                        </div>
+
+                        <div className="ticket-product-info">
+                          <h4>{item.nom}</h4>
+
+                          <span>
+                            {Math.round(
+                              (item.calories_100g *
+                                item.quantite) /
+                                100
+                            )}{' '}
+                            kcal
+                          </span>
+                        </div>
+
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            supprimerAliment(item.id)
+                          }
+                          aria-label={`Supprimer ${item.nom}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <div className="quantity-control">
+                        <button
+                          onClick={() =>
+                            decrementer(item.id)
+                          }
+                        >
+                          −
+                        </button>
+
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantite}
+                          onChange={(e) =>
+                            modifierQuantite(
+                              item.id,
+                              e.target.value
+                            )
+                          }
+                        />
+
+                        <span>g</span>
+
+                        <button
+                          onClick={() =>
+                            incrementer(item.id)
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="ticket-summary">
+                  <div className="summary-line">
+                    <span>Aliments</span>
+                    <strong>
+                      {panier.length}
+                    </strong>
+                  </div>
+
+                  <div className="summary-line">
+                    <span>Quantité totale</span>
+                    <strong>
+                      {Math.round(totalGrammes)} g
+                    </strong>
+                  </div>
+
+                  <div className="total-line">
+                    <div>
+                      <span>TOTAL</span>
+                      <small>Calories estimées</small>
+                    </div>
+
+                    <strong>
+                      {Math.round(totalCalories)}
+                      <small>kcal</small>
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      </main>
+
+      <footer>
+        <span>🔥 CALORIES@SUPERMARKET</span>
+        <span>
+          Données fournies par Open Food Facts
+        </span>
+      </footer>
+
+      {selectedProduct && (
+        <div
+          className="modal-overlay"
+          onMouseDown={fermerAjout}
+        >
+          <div
+            className="quantity-modal"
+            onMouseDown={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <button
+              className="modal-close"
+              onClick={fermerAjout}
+            >
+              ×
+            </button>
+
+            <div className="modal-product-image">
+              {selectedProduct.image ? (
+                <img
+                  src={selectedProduct.image}
+                  alt={selectedProduct.nom}
+                />
+              ) : (
+                '🍽️'
+              )}
+            </div>
+
+            <span className="section-label">
+              AJOUTER AU TICKET
+            </span>
+
+            <h3>{selectedProduct.nom}</h3>
+
+            <p className="modal-calories">
+              {Math.round(
+                selectedProduct.calories_100g
+              )}{' '}
+              kcal / 100g
+            </p>
+
+            <label htmlFor="quantity">
+              Quantité
+            </label>
+
+            <div className="quantity-input">
+              <input
+                id="quantity"
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={(e) =>
+                  setQuantity(e.target.value)
+                }
+                autoFocus
+              />
+
+              <span>grammes</span>
+            </div>
+
+            <div className="quick-quantities">
+              {[50, 100, 150, 200, 250].map(
+                (value) => (
+                  <button
+                    key={value}
+                    className={
+                      Number(quantity) === value
+                        ? 'active'
+                        : ''
+                    }
+                    onClick={() =>
+                      setQuantity(value)
+                    }
+                  >
+                    {value}g
+                  </button>
+                )
+              )}
+            </div>
+
+            <div className="modal-preview">
+              <span>
+                Calories estimées
+              </span>
+
+              <strong>
+                {Math.round(
+                  (selectedProduct.calories_100g *
+                    (Number(quantity) || 0)) /
+                    100
+                )}{' '}
+                kcal
+              </strong>
+            </div>
+
+            <button
+              className="modal-add"
+              onClick={ajouterAuPanier}
+            >
+              <span>+</span>
+              Ajouter au ticket
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-function TerminalLine({ line }) {
-  if (line.type === 'divider') {
-    return <div className="line divider">{line.text}</div>
-  }
-  if (line.type === 'ticket-row' || line.type === 'total') {
-    return (
-      <div className={`line ${line.type}`}>
-        <span>{line.text}</span>
-        <span className="kcal">{line.kcal}</span>
-      </div>
-    )
-  }
-  if (line.type === 'choice') {
-    return (
-      <div className="line choice">
-        <span>{line.text}</span>
-        <span className="kcal">{line.kcal}</span>
-      </div>
-    )
-  }
-  if (line.type === 'user') {
-    return (
-      <div className="line user">
-        <span className="prompt">{PROMPT}</span> {line.text}
-      </div>
-    )
-  }
-  return <div className={`line ${line.type}`}>{line.text}</div>
-}
+```
