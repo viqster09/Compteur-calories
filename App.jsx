@@ -151,7 +151,7 @@ export default function App() {
     }
   }
   function viderCLI() {
-    if (stage.length === 0) {
+    if (lines.length === 0) {
       pushLine(
         'warn',
         'Le CLI est déjà vide.'
@@ -445,7 +445,7 @@ export default function App() {
               </button>
             </div>
           )}
-          {stage.length > 0 && (
+          {lines.length > 0 && (
             <div className="cart-actions">
               <button
                 type="button"
