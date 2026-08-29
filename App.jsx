@@ -1,4 +1,4 @@
-
+```jsx
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
@@ -38,8 +38,6 @@ export default function App() {
   const [results, setResults] = useState([])
   const [pendingProduct, setPendingProduct] = useState(null)
   const [panier, setPanier] = useState([])
-
-  // État de la popup
   const [showFormula, setShowFormula] = useState(false)
 
   const scrollRef = useRef(null)
@@ -80,12 +78,12 @@ export default function App() {
   // OUVRIR LA POPUP
   // =========================================
 
-  const PageAccompagnement = () => {
+  function PageAccompagnement() {
     setShowFormula(true)
   }
 
   // =========================================
-  // RECHERCHER UN ALIMENT
+  // RECHERCHE ALIMENT
   // =========================================
 
   async function chercherAliment(terme) {
@@ -171,7 +169,6 @@ export default function App() {
         'warn',
         'Le CLI est déjà vide.'
       )
-
       return
     }
 
@@ -193,7 +190,6 @@ export default function App() {
         'warn',
         'Le ticket est déjà vide.'
       )
-
       return
     }
 
@@ -206,7 +202,7 @@ export default function App() {
   }
 
   // =========================================
-  // AFFICHER LE TOTAL
+  // AFFICHER TOTAL
   // =========================================
 
   function afficherTotal() {
@@ -215,7 +211,6 @@ export default function App() {
         'warn',
         'Le ticket est vide pour le moment.'
       )
-
       return
     }
 
@@ -275,11 +270,10 @@ export default function App() {
     }
 
     pushLine('user', value)
-
     setInput('')
 
     // =========================================
-    // ÉTAPE : NOM DE L'ALIMENT
+    // NOM DE L'ALIMENT
     // =========================================
 
     if (stage === 'name') {
@@ -316,7 +310,6 @@ export default function App() {
           'warn',
           "Le service ne répond pas pour l'instant. Réessaie dans un instant avec le même nom."
         )
-
         return
       }
 
@@ -325,7 +318,6 @@ export default function App() {
           'warn',
           `Rien trouvé pour "${value}". Essaie un nom plus simple (ex : "tomate" plutôt que "tomate cerise bio").`
         )
-
         return
       }
 
@@ -334,7 +326,7 @@ export default function App() {
       pushLines([
         ...found.map((result, index) => ({
           type: 'choice',
-          text: ` [${index + 1}] ${result.nom}`,
+          text: `[${index + 1}] ${result.nom}`,
           kcal: `${Math.round(
             result.calories_100g
           )} kcal/100g`
@@ -346,12 +338,11 @@ export default function App() {
       ])
 
       setStage('choosing')
-
       return
     }
 
     // =========================================
-    // ÉTAPE : CHOIX DU PRODUIT
+    // CHOIX DU PRODUIT
     // =========================================
 
     if (stage === 'choosing') {
@@ -372,7 +363,6 @@ export default function App() {
           'warn',
           `Choix invalide. Tape un numéro entre 1 et ${results.length}, ou 0 pour annuler.`
         )
-
         return
       }
 
@@ -386,12 +376,11 @@ export default function App() {
       )
 
       setStage('quantity')
-
       return
     }
 
     // =========================================
-    // ÉTAPE : QUANTITÉ
+    // QUANTITE
     // =========================================
 
     if (stage === 'quantity') {
@@ -404,7 +393,6 @@ export default function App() {
           'warn',
           'Entre un nombre de grammes valide (ex : 100).'
         )
-
         return
       }
 
@@ -449,11 +437,9 @@ export default function App() {
         <div className="titlebar">
 
           <div className="dots">
-
             <span className="dot red" />
             <span className="dot yellow" />
             <span className="dot green" />
-
           </div>
 
           <div className="titletext">
@@ -509,8 +495,6 @@ export default function App() {
 
           </form>
 
-          {/* VIDER LE TICKET */}
-
           {panier.length > 0 && (
             <div className="cart-actions">
 
@@ -525,8 +509,6 @@ export default function App() {
             </div>
           )}
 
-          {/* VIDER LE CLI */}
-
           {lines.length > 0 && (
             <div className="cart-actions">
 
@@ -540,8 +522,6 @@ export default function App() {
 
             </div>
           )}
-
-          {/* BOUTON PERTE DE POIDS */}
 
           <div className="cart-actions">
 
@@ -608,46 +588,34 @@ export default function App() {
               </p>
 
               <div className="formula-box">
-
                 <h3>👨 Homme</h3>
-
                 <p>
                   MB = 10 × poids + 6,25 × taille
                   − 5 × âge + 5
                 </p>
-
               </div>
 
               <div className="formula-box">
-
                 <h3>👩 Femme</h3>
-
                 <p>
                   MB = 10 × poids + 6,25 × taille
                   − 5 × âge − 161
                 </p>
-
               </div>
 
               <div className="formula-box">
-
                 <h3>🛋️ Sans sport</h3>
-
                 <p>
                   Calories de maintien ≈ MB × 1,2
                 </p>
-
               </div>
 
               <div className="formula-box">
-
                 <h3>📉 Perte de poids</h3>
-
                 <p>
                   Déficit modéré ≈ 10 à 20 %
                   sous les calories de maintien.
                 </p>
-
               </div>
 
               <div className="formula-example">
@@ -699,7 +667,7 @@ export default function App() {
 }
 
 // =========================================
-// AFFICHAGE DES LIGNES DU TERMINAL
+// AFFICHAGE DES LIGNES
 // =========================================
 
 function TerminalLine({ line, onDelete }) {
@@ -793,184 +761,3 @@ function TerminalLine({ line, onDelete }) {
   )
 }
 ```
-
-Et ajoute ce CSS **à la fin de ton `App.css`** pour que la popup soit correctement affichée :
-
-```css
-/* =========================================
-   POPUP FORMULE CALORIES
-========================================= */
-
-.formula-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 20px;
-
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(5px);
-}
-
-.formula-popup {
-  position: relative;
-
-  width: min(650px, 100%);
-  max-height: 90vh;
-
-  overflow-y: auto;
-
-  padding: 30px;
-
-  background: #101016;
-
-  border: 1px solid #8b5cf6;
-  border-radius: 14px;
-
-  box-shadow:
-    0 0 25px rgba(139, 92, 246, 0.35),
-    0 0 70px rgba(139, 92, 246, 0.15);
-
-  color: #fff;
-}
-
-.formula-title {
-  margin-bottom: 25px;
-
-  text-align: center;
-
-  font-size: 24px;
-  font-weight: 700;
-
-  color: #a78bfa;
-}
-
-.formula-content {
-  line-height: 1.6;
-}
-
-.formula-content > p {
-  margin-bottom: 20px;
-}
-
-.formula-box {
-  margin: 15px 0;
-  padding: 16px;
-
-  background: rgba(139, 92, 246, 0.08);
-
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  border-radius: 10px;
-}
-
-.formula-box h3 {
-  margin: 0 0 8px;
-
-  color: #c4b5fd;
-}
-
-.formula-box p {
-  margin: 0;
-
-  font-family: monospace;
-  font-size: 15px;
-}
-
-.formula-example {
-  margin-top: 20px;
-  padding: 16px;
-
-  background: rgba(34, 197, 94, 0.08);
-
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 10px;
-}
-
-.formula-example h3 {
-  margin-top: 0;
-}
-
-.formula-warning {
-  margin-top: 20px;
-  padding: 14px;
-
-  background: rgba(255, 193, 7, 0.08);
-
-  border: 1px solid rgba(255, 193, 7, 0.25);
-  border-radius: 8px;
-
-  font-size: 14px;
-}
-
-.formula-close {
-  position: absolute;
-
-  top: 8px;
-  right: 14px;
-
-  border: none;
-  background: transparent;
-
-  color: #fff;
-
-  font-size: 32px;
-  line-height: 1;
-
-  cursor: pointer;
-}
-
-.formula-close:hover {
-  color: #a78bfa;
-}
-
-.formula-button {
-  width: 100%;
-
-  margin-top: 20px;
-  padding: 12px 18px;
-
-  border: none;
-  border-radius: 8px;
-
-  background: #8b5cf6;
-
-  color: white;
-
-  font-weight: 600;
-
-  cursor: pointer;
-}
-
-.formula-button:hover {
-  opacity: 0.9;
-}
-
-@media (max-width: 600px) {
-
-  .formula-overlay {
-    padding: 12px;
-  }
-
-  .formula-popup {
-    padding: 22px 18px;
-    max-height: 92vh;
-  }
-
-  .formula-title {
-    font-size: 20px;
-    padding-right: 20px;
-  }
-
-  .formula-box {
-    padding: 13px;
-  }
-
-  .formula-box p {
-    font-size: 13px;
-  }
-
-}
