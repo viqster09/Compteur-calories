@@ -140,6 +140,22 @@ export default function App() {
       `supprimé : ${aliment.nom}`
     )
   }
+  function viderCLI() {
+    if (lines.length === 0) {
+      pushLine(
+        'warn',
+        'Le CLI est déjà vide.'
+      )
+      return
+    }
+
+    setLines([])
+
+    pushLine(
+      'meta',
+      '✓ tous les aliments ont été supprimés du ticket.'
+    )
+  }
 
   function viderPanier() {
     if (panier.length === 0) {
@@ -149,15 +165,7 @@ export default function App() {
       )
       return
     }
-  }
-  function viderCLI() {
-    if (lines.length === 0) {
-      pushLine(
-        'warn',
-        'Le CLI est déjà vide.'
-      )
-      return
-    }
+
 
     setPanier([])
 
