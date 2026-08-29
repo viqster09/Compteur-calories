@@ -78,7 +78,7 @@ export default function App() {
   // =========================================
 
   const PageAccompagnement = () => {
-    window.location.href = '/accompagnement.html'
+    window.location.href = '/accompagnements.html'
   }
 
   // =========================================
