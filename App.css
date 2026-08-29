@@ -258,4 +258,27 @@ body {
   background: rgba(180, 0, 0, 0.45);
   color: #ffffff;
 }
+.clear-cart1 {
+  padding: 6px 10px;
 
+  border: 1px solid rgba(107, 255, 70, 0.35);
+  border-radius: 5px;
+
+  background: rgba(100, 0, 0, 0.2);
+
+  color: #80ff66;
+
+  cursor: pointer;
+
+  font-family: inherit;
+  font-size: 11px;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.clear-cart1:hover {
+  background: rgba(15, 180, 0, 0.45);
+  color: #000000;
+}
