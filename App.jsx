@@ -1,4 +1,4 @@
-```jsx
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
@@ -536,4 +536,4 @@ function TerminalLine({ line, onDelete }) {
     </div>
   )
 }
-```
+
