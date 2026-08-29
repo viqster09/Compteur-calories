@@ -153,7 +153,7 @@ export default function App() {
 
     pushLine(
       'meta',
-      '✓ tous les aliments ont été supprimés du ticket.'
+      '✓ Le CLI a été vidé.'
     )
   }
 
