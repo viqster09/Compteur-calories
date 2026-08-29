@@ -1,6 +1,5 @@
+```jsx
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Routes, Route, useNavigate } from 'react-router-dom'
-import Accompagnement from './Accompagnement.jsx'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
 const PROMPT = 'calories@supermarket:~$'
@@ -9,9 +8,7 @@ let idCounter = 0
 
 const nextId = () => ++idCounter
 
-function Calculateur() {
-  const navigate = useNavigate()
-
+export default function App() {
   const [lines, setLines] = useState([
     {
       id: nextId(),
@@ -41,6 +38,9 @@ function Calculateur() {
   const [results, setResults] = useState([])
   const [pendingProduct, setPendingProduct] = useState(null)
   const [panier, setPanier] = useState([])
+
+  // État de la popup
+  const [showFormula, setShowFormula] = useState(false)
 
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -77,15 +77,15 @@ function Calculateur() {
   }, [])
 
   // =========================================
-  // ALLER VERS LA PAGE ACCOMPAGNEMENT
+  // OUVRIR LA POPUP
   // =========================================
 
   const PageAccompagnement = () => {
-    navigate('/accompagnement')
+    setShowFormula(true)
   }
 
   // =========================================
-  // RECHERCHE ALIMENT
+  // RECHERCHER UN ALIMENT
   // =========================================
 
   async function chercherAliment(terme) {
@@ -279,7 +279,7 @@ function Calculateur() {
     setInput('')
 
     // =========================================
-    // NOM DE L'ALIMENT
+    // ÉTAPE : NOM DE L'ALIMENT
     // =========================================
 
     if (stage === 'name') {
@@ -351,7 +351,7 @@ function Calculateur() {
     }
 
     // =========================================
-    // CHOIX DU PRODUIT
+    // ÉTAPE : CHOIX DU PRODUIT
     // =========================================
 
     if (stage === 'choosing') {
@@ -359,9 +359,7 @@ function Calculateur() {
 
       if (n === 0) {
         pushLine('meta', 'annulé.')
-
         setStage('name')
-
         return
       }
 
@@ -393,7 +391,7 @@ function Calculateur() {
     }
 
     // =========================================
-    // QUANTITE
+    // ÉTAPE : QUANTITÉ
     // =========================================
 
     if (stage === 'quantity') {
@@ -451,9 +449,11 @@ function Calculateur() {
         <div className="titlebar">
 
           <div className="dots">
+
             <span className="dot red" />
             <span className="dot yellow" />
             <span className="dot green" />
+
           </div>
 
           <div className="titletext">
@@ -541,7 +541,7 @@ function Calculateur() {
             </div>
           )}
 
-          {/* ACCOMPAGNEMENT */}
+          {/* BOUTON PERTE DE POIDS */}
 
           <div className="cart-actions">
 
@@ -550,7 +550,7 @@ function Calculateur() {
               className="clear-cart1"
               onClick={PageAccompagnement}
             >
-              Voulez vous perdre du poids ?
+              Voulez-vous perdre du poids ?
             </button>
 
           </div>
@@ -571,12 +571,135 @@ function Calculateur() {
         (base collaborative et open source).
       </p>
 
+      {/* =========================================
+          POPUP FORMULE
+      ========================================= */}
+
+      {showFormula && (
+        <div
+          className="formula-overlay"
+          onClick={() => setShowFormula(false)}
+        >
+
+          <div
+            className="formula-popup"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <button
+              type="button"
+              className="formula-close"
+              onClick={() => setShowFormula(false)}
+              aria-label="Fermer"
+            >
+              ×
+            </button>
+
+            <div className="formula-title">
+              CALCUL DES CALORIES
+            </div>
+
+            <div className="formula-content">
+
+              <p>
+                Pour estimer tes besoins énergétiques,
+                on commence par calculer ton
+                <strong> métabolisme de base (MB)</strong>.
+              </p>
+
+              <div className="formula-box">
+
+                <h3>👨 Homme</h3>
+
+                <p>
+                  MB = 10 × poids + 6,25 × taille
+                  − 5 × âge + 5
+                </p>
+
+              </div>
+
+              <div className="formula-box">
+
+                <h3>👩 Femme</h3>
+
+                <p>
+                  MB = 10 × poids + 6,25 × taille
+                  − 5 × âge − 161
+                </p>
+
+              </div>
+
+              <div className="formula-box">
+
+                <h3>🛋️ Sans sport</h3>
+
+                <p>
+                  Calories de maintien ≈ MB × 1,2
+                </p>
+
+              </div>
+
+              <div className="formula-box">
+
+                <h3>📉 Perte de poids</h3>
+
+                <p>
+                  Déficit modéré ≈ 10 à 20 %
+                  sous les calories de maintien.
+                </p>
+
+              </div>
+
+              <div className="formula-example">
+
+                <h3>Exemple</h3>
+
+                <p>
+                  Si ton métabolisme de base est de
+                  <strong> 1 800 kcal</strong> :
+                </p>
+
+                <p>
+                  1 800 × 1,2 ≈
+                  <strong> 2 160 kcal/jour</strong>
+                </p>
+
+                <p>
+                  Cela correspond approximativement
+                  aux calories de maintien avec une
+                  activité très faible.
+                </p>
+
+              </div>
+
+              <p className="formula-warning">
+                ⚠️ Ces formules donnent une estimation.
+                Les besoins réels peuvent varier selon
+                l'activité quotidienne, la croissance,
+                la composition corporelle et d'autres facteurs.
+              </p>
+
+            </div>
+
+            <button
+              type="button"
+              className="formula-button"
+              onClick={() => setShowFormula(false)}
+            >
+              Compris
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
   )
 }
 
 // =========================================
-// LIGNES DU TERMINAL
+// AFFICHAGE DES LIGNES DU TERMINAL
 // =========================================
 
 function TerminalLine({ line, onDelete }) {
@@ -669,23 +792,188 @@ function TerminalLine({ line, onDelete }) {
     </div>
   )
 }
+```
 
-// =========================================
-// ROUTES
-// =========================================
+Et ajoute ce CSS **à la fin de ton `App.css`** pour que la popup soit correctement affichée :
 
-export default function App() {
-  return (
-    <Routes>
-      <Route
-        path="/"
-        element={<Calculateur />}
-      />
+```css
+/* =========================================
+   POPUP FORMULE CALORIES
+========================================= */
 
-      <Route
-        path="/accompagnement"
-        element={<Accompagnement />}
-      />
-    </Routes>
-  )
+.formula-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(5px);
 }
+
+.formula-popup {
+  position: relative;
+
+  width: min(650px, 100%);
+  max-height: 90vh;
+
+  overflow-y: auto;
+
+  padding: 30px;
+
+  background: #101016;
+
+  border: 1px solid #8b5cf6;
+  border-radius: 14px;
+
+  box-shadow:
+    0 0 25px rgba(139, 92, 246, 0.35),
+    0 0 70px rgba(139, 92, 246, 0.15);
+
+  color: #fff;
+}
+
+.formula-title {
+  margin-bottom: 25px;
+
+  text-align: center;
+
+  font-size: 24px;
+  font-weight: 700;
+
+  color: #a78bfa;
+}
+
+.formula-content {
+  line-height: 1.6;
+}
+
+.formula-content > p {
+  margin-bottom: 20px;
+}
+
+.formula-box {
+  margin: 15px 0;
+  padding: 16px;
+
+  background: rgba(139, 92, 246, 0.08);
+
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 10px;
+}
+
+.formula-box h3 {
+  margin: 0 0 8px;
+
+  color: #c4b5fd;
+}
+
+.formula-box p {
+  margin: 0;
+
+  font-family: monospace;
+  font-size: 15px;
+}
+
+.formula-example {
+  margin-top: 20px;
+  padding: 16px;
+
+  background: rgba(34, 197, 94, 0.08);
+
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 10px;
+}
+
+.formula-example h3 {
+  margin-top: 0;
+}
+
+.formula-warning {
+  margin-top: 20px;
+  padding: 14px;
+
+  background: rgba(255, 193, 7, 0.08);
+
+  border: 1px solid rgba(255, 193, 7, 0.25);
+  border-radius: 8px;
+
+  font-size: 14px;
+}
+
+.formula-close {
+  position: absolute;
+
+  top: 8px;
+  right: 14px;
+
+  border: none;
+  background: transparent;
+
+  color: #fff;
+
+  font-size: 32px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.formula-close:hover {
+  color: #a78bfa;
+}
+
+.formula-button {
+  width: 100%;
+
+  margin-top: 20px;
+  padding: 12px 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #8b5cf6;
+
+  color: white;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.formula-button:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+
+  .formula-overlay {
+    padding: 12px;
+  }
+
+  .formula-popup {
+    padding: 22px 18px;
+    max-height: 92vh;
+  }
+
+  .formula-title {
+    font-size: 20px;
+    padding-right: 20px;
+  }
+
+  .formula-box {
+    padding: 13px;
+  }
+
+  .formula-box p {
+    font-size: 13px;
+  }
+
+}
+```
+
+Cette version **ne change pas de page** : le bouton ouvre directement la fenêtre avec les formules dans ton application Netlify.
