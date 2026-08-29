@@ -5,6 +5,7 @@ const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
 const PROMPT = 'calories@supermarket:~$'
 
 let idCounter = 0
+
 const nextId = () => ++idCounter
 
 export default function App() {
@@ -72,6 +73,18 @@ export default function App() {
     ])
   }, [])
 
+  // =========================================
+  // REDIRECTION VERS LA PAGE ACCOMPAGNEMENT
+  // =========================================
+
+  const PageAccompagnement = () => {
+    window.location.href = '/accompagnement.html'
+  }
+
+  // =========================================
+  // RECHERCHE ALIMENT
+  // =========================================
+
   async function chercherAliment(terme) {
     const params = new URLSearchParams({
       search_terms: terme,
@@ -122,6 +135,10 @@ export default function App() {
     return null
   }
 
+  // =========================================
+  // SUPPRIMER UN ALIMENT
+  // =========================================
+
   function supprimerAliment(id) {
     const aliment = panier.find(
       (item) => item.id === id
@@ -140,12 +157,18 @@ export default function App() {
       `supprimé : ${aliment.nom}`
     )
   }
+
+  // =========================================
+  // VIDER LE CLI
+  // =========================================
+
   function viderCLI() {
     if (lines.length === 0) {
       pushLine(
         'warn',
         'Le CLI est déjà vide.'
       )
+
       return
     }
 
@@ -157,15 +180,19 @@ export default function App() {
     )
   }
 
+  // =========================================
+  // VIDER LE PANIER
+  // =========================================
+
   function viderPanier() {
     if (panier.length === 0) {
       pushLine(
         'warn',
         'Le ticket est déjà vide.'
       )
+
       return
     }
-
 
     setPanier([])
 
@@ -175,12 +202,17 @@ export default function App() {
     )
   }
 
+  // =========================================
+  // AFFICHER TOTAL
+  // =========================================
+
   function afficherTotal() {
     if (panier.length === 0) {
       pushLine(
         'warn',
         'Le ticket est vide pour le moment.'
       )
+
       return
     }
 
@@ -226,6 +258,10 @@ export default function App() {
     ])
   }
 
+  // =========================================
+  // GESTION DU FORMULAIRE
+  // =========================================
+
   async function handleSubmit(e) {
     e.preventDefault()
 
@@ -236,7 +272,12 @@ export default function App() {
     }
 
     pushLine('user', value)
+
     setInput('')
+
+    // =========================================
+    // ETAPE : NOM DE L'ALIMENT
+    // =========================================
 
     if (stage === 'name') {
       const cmd = value.toLowerCase()
@@ -272,6 +313,7 @@ export default function App() {
           'warn',
           "Le service ne répond pas pour l'instant. Réessaie dans un instant avec le même nom."
         )
+
         return
       }
 
@@ -280,6 +322,7 @@ export default function App() {
           'warn',
           `Rien trouvé pour "${value}". Essaie un nom plus simple (ex : "tomate" plutôt que "tomate cerise bio").`
         )
+
         return
       }
 
@@ -288,7 +331,7 @@ export default function App() {
       pushLines([
         ...found.map((result, index) => ({
           type: 'choice',
-          text: `  [${index + 1}] ${result.nom}`,
+          text: ` [${index + 1}] ${result.nom}`,
           kcal: `${Math.round(
             result.calories_100g
           )} kcal/100g`
@@ -300,15 +343,22 @@ export default function App() {
       ])
 
       setStage('choosing')
+
       return
     }
+
+    // =========================================
+    // ETAPE : CHOIX DU PRODUIT
+    // =========================================
 
     if (stage === 'choosing') {
       const n = parseInt(value, 10)
 
       if (n === 0) {
         pushLine('meta', 'annulé.')
+
         setStage('name')
+
         return
       }
 
@@ -321,6 +371,7 @@ export default function App() {
           'warn',
           `Choix invalide. Tape un numéro entre 1 et ${results.length}, ou 0 pour annuler.`
         )
+
         return
       }
 
@@ -334,8 +385,13 @@ export default function App() {
       )
 
       setStage('quantity')
+
       return
     }
+
+    // =========================================
+    // ETAPE : QUANTITE
+    // =========================================
 
     if (stage === 'quantity') {
       const qte = parseFloat(
@@ -347,6 +403,7 @@ export default function App() {
           'warn',
           'Entre un nombre de grammes valide (ex : 100).'
         )
+
         return
       }
 
@@ -382,11 +439,14 @@ export default function App() {
 
   return (
     <div className="crt-wrap">
+
       <div
         className="terminal"
         onClick={() => inputRef.current?.focus()}
       >
+
         <div className="titlebar">
+
           <div className="dots">
             <span className="dot red" />
             <span className="dot yellow" />
@@ -396,12 +456,14 @@ export default function App() {
           <div className="titletext">
             calories@supermarket — zsh
           </div>
+
         </div>
 
         <div className="screen">
+
           {lines.map((line) => (
             <TerminalLine
-              key={line.id}
+              key={lines.id}
               line={line}
               onDelete={supprimerAliment}
             />
@@ -417,6 +479,7 @@ export default function App() {
             onSubmit={handleSubmit}
             className="input-row"
           >
+
             <span className="prompt">
               {PROMPT}
             </span>
@@ -440,10 +503,14 @@ export default function App() {
             >
               ▌
             </span>
+
           </form>
+
+          {/* VIDER LE TICKET */}
 
           {panier.length > 0 && (
             <div className="cart-actions">
+
               <button
                 type="button"
                 className="clear-cart"
@@ -451,10 +518,15 @@ export default function App() {
               >
                 🗑️ Vider tout le ticket
               </button>
+
             </div>
           )}
+
+          {/* VIDER LE CLI */}
+
           {lines.length > 0 && (
             <div className="cart-actions">
+
               <button
                 type="button"
                 className="clear-cart"
@@ -462,26 +534,50 @@ export default function App() {
               >
                 🗑️ Vider tout le CLI
               </button>
+
             </div>
           )}
+
+          {/* PAGE ACCOMPAGNEMENT */}
+
+          <div className="cart-actions">
+
+            <button
+              type="button"
+              className="clear-cart1"
+              onClick={PageAccompagnement}
+            >
+              Voulez vous perdre du poids ?
+            </button>
+
+          </div>
+
           <div ref={scrollRef} />
+
         </div>
 
         <div
           className="scanlines"
           aria-hidden="true"
         />
+
       </div>
 
       <p className="footnote">
         Données nutritionnelles : Open Food Facts
         (base collaborative et open source).
       </p>
+
     </div>
   )
 }
 
+// =========================================
+// AFFICHAGE DES LIGNES DU TERMINAL
+// =========================================
+
 function TerminalLine({ line, onDelete }) {
+
   if (line.type === 'divider') {
     return (
       <div className="line divider">
@@ -493,6 +589,7 @@ function TerminalLine({ line, onDelete }) {
   if (line.type === 'ticket-row') {
     return (
       <div className="line ticket-row">
+
         <span>
           {line.text}
         </span>
@@ -505,13 +602,14 @@ function TerminalLine({ line, onDelete }) {
           type="button"
           className="delete-food"
           onClick={() =>
-            onDelete(lines.id)
+            onDelete(line.id)
           }
           title="Supprimer cet aliment"
           aria-label="Supprimer cet aliment"
         >
           ❌
         </button>
+
       </div>
     )
   }
@@ -519,6 +617,7 @@ function TerminalLine({ line, onDelete }) {
   if (line.type === 'total') {
     return (
       <div className="line total">
+
         <span>
           {line.text}
         </span>
@@ -526,6 +625,7 @@ function TerminalLine({ line, onDelete }) {
         <span className="kcal">
           {line.kcal}
         </span>
+
       </div>
     )
   }
@@ -533,6 +633,7 @@ function TerminalLine({ line, onDelete }) {
   if (line.type === 'choice') {
     return (
       <div className="line choice">
+
         <span>
           {line.text}
         </span>
@@ -540,6 +641,7 @@ function TerminalLine({ line, onDelete }) {
         <span className="kcal">
           {line.kcal}
         </span>
+
       </div>
     )
   }
@@ -547,10 +649,13 @@ function TerminalLine({ line, onDelete }) {
   if (line.type === 'user') {
     return (
       <div className="line user">
+
         <span className="prompt">
           {PROMPT}
         </span>{' '}
+
         {line.text}
+
       </div>
     )
   }
