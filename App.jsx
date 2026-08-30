@@ -1,12 +1,56 @@
-
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API_URL = 'https://world.openfoodfacts.org/cgi/search.pl'
 const PROMPT = 'calories@supermarket:~$'
+const HISTORY_KEY = 'ticket-historique-v1'
 
 let idCounter = 0
 
 const nextId = () => ++idCounter
+
+// =========================================
+// UTILITAIRES HISTORIQUE
+// =========================================
+
+function todayKey() {
+  const d = new Date()
+  return d.toISOString().slice(0, 10) // YYYY-MM-DD
+}
+
+function loadHistorique() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveHistorique(hist) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist))
+  } catch {
+    // stockage indisponible (mode privé, quota, etc.) : on ignore silencieusement
+  }
+}
+
+function formatDateLong(key) {
+  const d = new Date(`${key}T00:00:00`)
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  })
+}
+
+function formatDateShort(key) {
+  const d = new Date(`${key}T00:00:00`)
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  })
+}
 
 export default function App() {
   const [lines, setLines] = useState([
@@ -28,7 +72,7 @@ export default function App() {
     {
       id: nextId(),
       type: 'system',
-      text: "Tape le nom d'un aliment pour commencer. Commandes : 'total', 'fin'."
+      text: "Tape le nom d'un aliment pour commencer. Commandes : 'total', 'fin', 'dashboard'."
     }
   ])
 
@@ -39,6 +83,8 @@ export default function App() {
   const [pendingProduct, setPendingProduct] = useState(null)
   const [panier, setPanier] = useState([])
   const [showFormula, setShowFormula] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
+  const [historique, setHistorique] = useState(() => loadHistorique())
 
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -52,6 +98,51 @@ export default function App() {
   useEffect(() => {
     inputRef.current?.focus()
   }, [stage, busy])
+
+  // =========================================
+  // RESTAURER LE PANIER DU JOUR AU CHARGEMENT
+  // =========================================
+
+  useEffect(() => {
+    const jour = historique[todayKey()]
+
+    if (jour && jour.items && jour.items.length > 0) {
+      // on régénère des id propres pour éviter toute collision
+      // avec le compteur de la session en cours
+      setPanier(jour.items.map((item) => ({
+        ...item,
+        id: nextId()
+      })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // =========================================
+  // SYNCHRONISER LE PANIER -> HISTORIQUE DU JOUR
+  // =========================================
+
+  useEffect(() => {
+    const key = todayKey()
+
+    const total = panier.reduce(
+      (acc, item) =>
+        acc + (item.calories_100g * item.quantite) / 100,
+      0
+    )
+
+    setHistorique((prev) => {
+      const updated = {
+        ...prev,
+        [key]: {
+          items: panier,
+          total: Math.round(total)
+        }
+      }
+
+      saveHistorique(updated)
+      return updated
+    })
+  }, [panier])
 
   const pushLine = useCallback((type, text) => {
     setLines((prev) => [
@@ -75,11 +166,15 @@ export default function App() {
   }, [])
 
   // =========================================
-  // OUVRIR LA POPUP
+  // OUVRIR LES POPUPS
   // =========================================
 
   function PageAccompagnement() {
     setShowFormula(true)
+  }
+
+  function ouvrirDashboard() {
+    setShowDashboard(true)
   }
 
   // =========================================
@@ -202,6 +297,36 @@ export default function App() {
   }
 
   // =========================================
+  // VIDER L'HISTORIQUE COMPLET
+  // =========================================
+
+  function viderHistorique() {
+    const confirmation = window.confirm(
+      "Supprimer tout l'historique des jours précédents ? Cette action est irréversible."
+    )
+
+    if (!confirmation) {
+      return
+    }
+
+    const key = todayKey()
+    const aujourdhui = historique[key]
+
+    // on garde uniquement les données du jour en cours
+    const updated = aujourdhui
+      ? { [key]: aujourdhui }
+      : {}
+
+    setHistorique(updated)
+    saveHistorique(updated)
+
+    pushLine(
+      'meta',
+      "✓ historique des jours précédents supprimé."
+    )
+  }
+
+  // =========================================
   // AFFICHER TOTAL
   // =========================================
 
@@ -291,6 +416,15 @@ export default function App() {
         cmd === 'supprimer tous'
       ) {
         viderPanier()
+        return
+      }
+
+      if (
+        cmd === 'dashboard' ||
+        cmd === 'historique' ||
+        cmd === 'stats'
+      ) {
+        ouvrirDashboard()
         return
       }
 
@@ -528,6 +662,18 @@ export default function App() {
             <button
               type="button"
               className="clear-cart1"
+              onClick={ouvrirDashboard}
+            >
+              📊 Tableau de bord du jour
+            </button>
+
+          </div>
+
+          <div className="cart-actions">
+
+            <button
+              type="button"
+              className="clear-cart1"
               onClick={PageAccompagnement}
             >
               Voulez-vous perdre du poids ?
@@ -662,7 +808,177 @@ export default function App() {
         </div>
       )}
 
+      {/* =========================================
+          POPUP DASHBOARD
+      ========================================= */}
+
+      {showDashboard && (
+        <div
+          className="formula-overlay"
+          onClick={() => setShowDashboard(false)}
+        >
+
+          <div
+            className="formula-popup"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <button
+              type="button"
+              className="formula-close"
+              onClick={() => setShowDashboard(false)}
+              aria-label="Fermer"
+            >
+              ×
+            </button>
+
+            <div className="formula-title">
+              TABLEAU DE BORD
+            </div>
+
+            <div className="formula-content">
+
+              <Dashboard
+                historique={historique}
+                onClearHistory={viderHistorique}
+              />
+
+            </div>
+
+            <button
+              type="button"
+              className="formula-button"
+              onClick={() => setShowDashboard(false)}
+            >
+              Fermer
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
+  )
+}
+
+// =========================================
+// DASHBOARD QUOTIDIEN + HISTORIQUE
+// =========================================
+
+function Dashboard({ historique, onClearHistory }) {
+  const key = todayKey()
+  const aujourdhui = historique[key] || {
+    items: [],
+    total: 0
+  }
+
+  const jours = Object.entries(historique)
+    .filter(([k]) => k !== key)
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .slice(0, 14)
+
+  const totauxHistorique = jours.map(([, v]) => v.total)
+  const maxTotal = Math.max(aujourdhui.total, ...totauxHistorique, 1)
+
+  const moyenne = totauxHistorique.length > 0
+    ? Math.round(
+        totauxHistorique.reduce((a, b) => a + b, 0) /
+          totauxHistorique.length
+      )
+    : null
+
+  return (
+    <>
+
+      <div className="formula-box">
+        <h3>📅 Aujourd'hui — {formatDateLong(key)}</h3>
+
+        <p>
+          <strong>{aujourdhui.total} kcal</strong> consommées
+          {aujourdhui.items.length > 0
+            ? ` sur ${aujourdhui.items.length} aliment${aujourdhui.items.length > 1 ? 's' : ''}`
+            : ''}
+        </p>
+
+        {aujourdhui.items.length === 0 && (
+          <p>Aucun aliment enregistré pour l'instant.</p>
+        )}
+
+        {aujourdhui.items.length > 0 && (
+          <ul style={{ margin: '8px 0 0', paddingLeft: '18px' }}>
+            {aujourdhui.items.map((item) => (
+              <li key={item.id}>
+                {item.nom} ({item.quantite}g) —{' '}
+                {Math.round((item.calories_100g * item.quantite) / 100)} kcal
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {moyenne !== null && (
+        <div className="formula-box">
+          <h3>📈 Moyenne des jours précédents</h3>
+          <p><strong>{moyenne} kcal</strong> / jour en moyenne</p>
+        </div>
+      )}
+
+      <div className="formula-example">
+        <h3>Historique (14 derniers jours)</h3>
+
+        {jours.length === 0 && (
+          <p>Pas encore d'historique. Reviens demain !</p>
+        )}
+
+        {jours.map(([jourKey, data]) => (
+          <div
+            key={jourKey}
+            style={{
+              margin: '10px 0',
+              fontSize: '0.9em'
+            }}
+          >
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '4px'
+            }}>
+              <span>{formatDateShort(jourKey)}</span>
+              <span><strong>{data.total} kcal</strong></span>
+            </div>
+
+            <div style={{
+              width: '100%',
+              height: '8px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${Math.max((data.total / maxTotal) * 100, 2)}%`,
+                height: '100%',
+                background: '#4ade80'
+              }} />
+            </div>
+
+          </div>
+        ))}
+      </div>
+
+      {jours.length > 0 && (
+        <button
+          type="button"
+          className="formula-button"
+          onClick={onClearHistory}
+          style={{ marginTop: '12px' }}
+        >
+          🗑️ Vider l'historique précédent
+        </button>
+      )}
+
+    </>
   )
 }
 
